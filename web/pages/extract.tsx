@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useRouter } from "next/router";
 
 import { ExtractResponse } from "../lib/types";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_URL, authFetch } from "../lib/api";
 
 export default function ExtractPage() {
+  const router = useRouter();
   const [text, setText] = useState("");
   const [result, setResult] = useState<ExtractResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -13,11 +14,19 @@ export default function ExtractPage() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch(`${API_URL}/extract`, {
+      const res = await authFetch(`${API_URL}/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
+      if (res.status === 403) {
+        setError("Your credential is valid but lacks the required scope.");
+        return;
+      }
       if (res.status === 422) {
         const body = await res.json();
         setError(typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail));

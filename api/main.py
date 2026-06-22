@@ -23,6 +23,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
 from sentence_transformers import SentenceTransformer
 
+from .auth import (
+    LoginRequest,
+    TokenResponse,
+    authenticate_user,
+    create_access_token,
+    require_api_key_or_jwt,
+    require_jwt_admin,
+)
 from .deps import get_embedder, get_generator, get_nlp, get_session, get_weaviate
 from .kg import UnsupportedQueryError, wrap_kg_query
 from .m8_rag.generator import load_generator
@@ -79,17 +87,44 @@ app.add_middleware(
 )
 
 
+@app.post("/auth/login", response_model=TokenResponse)
+def auth_login(body: LoginRequest) -> TokenResponse:
+    """Exchange dev credentials for a signed JWT.
+
+    Invalid credentials → 401.
+    """
+    user = authenticate_user(body.username, body.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials.")
+    return TokenResponse(access_token=create_access_token(subject=user))
+
+
+@app.get("/admin/echo")
+def admin_echo(payload: dict = Depends(require_jwt_admin)) -> dict:
+    """Admin-only route — echoes the decoded JWT claims (JWT scope only)."""
+    return {"sub": payload.get("sub"), "payload": payload}
+
+
 @app.post("/extract", response_model=ExtractResponse)
-def extract(req: ExtractRequest, nlp=Depends(get_nlp)) -> ExtractResponse:
+def extract(
+    req: ExtractRequest,
+    auth: dict = Depends(require_api_key_or_jwt),
+    nlp=Depends(get_nlp),
+) -> ExtractResponse:
     """Run spaCy NER on the input text; return entities ordered by `start`.
 
-    Returns ExtractResponse with entities sorted by `start` ascending.
+    Requires a valid API key or JWT. Returns ExtractResponse with
+    entities sorted by `start` ascending.
     """
     return ExtractResponse(entities=extract_entities(req.text, nlp))
 
 
 @app.post("/kg/query", response_model=KGResponse)
-def kg_query(req: KGRequest, session=Depends(get_session)) -> KGResponse:
+def kg_query(
+    req: KGRequest,
+    auth: dict = Depends(require_api_key_or_jwt),
+    session=Depends(get_session),
+) -> KGResponse:
     """Run the W9B mapper and execute the resulting Cypher.
 
     Returns KGResponse(cypher=..., rows=[r.data() for r in session.run(...)], count=len(rows)).
@@ -112,6 +147,7 @@ def kg_query(req: KGRequest, session=Depends(get_session)) -> KGResponse:
 @app.post("/rag/answer", response_model=RAGResponse)
 def rag_answer(
     req: RAGRequest,
+    auth: dict = Depends(require_api_key_or_jwt),
     weaviate_client=Depends(get_weaviate),
     generator=Depends(get_generator),
     embedder=Depends(get_embedder),
