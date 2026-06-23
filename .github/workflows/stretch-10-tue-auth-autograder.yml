@@ -41,7 +41,7 @@ jobs:
         ports:
           - 8080:8080
         options: >-
-          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready"
+          --health-cmd "wget -q -O - http://localhost:8080/v1/.well-known/ready || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 24
