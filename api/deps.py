@@ -21,27 +21,24 @@ async def get_session(request: Request):
     The driver itself was constructed once in `main.lifespan` and stashed
     on `app.state` — pull it from there.
     """
-    # TODO: pull the Neo4j driver off `request.app.state`, open a
-    #       session inside a `with` block, and yield it.
-    raise NotImplementedError
+    driver = request.app.state.neo4j_driver
+    with driver.session() as session:
+        yield session
 
 
 def get_weaviate(request: Request):
     """Return the process-scoped Weaviate client constructed in lifespan."""
-    # TODO: return the Weaviate client stashed on `request.app.state`.
-    raise NotImplementedError
+    return request.app.state.weaviate_client
 
 
 def get_generator(request: Request):
     """Return the process-scoped flan-t5-base generator constructed in lifespan."""
-    # TODO: return the generator stashed on `request.app.state`.
-    raise NotImplementedError
+    return request.app.state.generator
 
 
 def get_nlp(request: Request):
     """Return the process-scoped spaCy pipeline constructed in lifespan."""
-    # TODO: return the spaCy pipeline stashed on `request.app.state`.
-    raise NotImplementedError
+    return request.app.state.nlp
 
 
 def get_embedder(request: Request):
@@ -52,5 +49,4 @@ def get_embedder(request: Request):
     `with_near_vector` returns meaningful results against a
     `vectorizer=none` Weaviate class.
     """
-    # TODO: return the embedder stashed on `request.app.state`.
-    raise NotImplementedError
+    return request.app.state.embedder

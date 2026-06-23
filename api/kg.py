@@ -19,5 +19,5 @@ def wrap_kg_query(question: str):
         UnsupportedQueryError — if the question does not match any
         supported pattern. The path operation converts this to 422.
     """
-    # TODO: call `map_question(question)` and return its (cypher, params).
-    raise NotImplementedError
+    cypher, params = map_question(question)
+    return cypher, params

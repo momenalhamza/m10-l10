@@ -1,19 +1,57 @@
 import { useState } from "react";
+import { useRouter } from "next/router";
 
-// TODO: import { KGResponse } from "../lib/types".
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { KGResponse } from "../lib/types";
+import { API_URL, authFetch } from "../lib/api";
 
 export default function KgPage() {
+  const router = useRouter();
   const [question, setQuestion] = useState("");
-  // TODO: track result + error state.
+  const [result, setResult] = useState<KGResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit() {
-    // TODO:
-    // 1. POST to `${API_URL}/kg/query` with JSON body { question }.
-    // 2. Handle 422 (unsupported question) — surface the supported_patterns
-    //    list to the user from the response detail.
-    // 3. Render the cypher and table of rows.
+    setError(null);
+    setResult(null);
+    try {
+      const res = await authFetch(`${API_URL}/kg/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
+      if (res.status === 403) {
+        setError("Your credential is valid but lacks the required scope.");
+        return;
+      }
+      if (res.status === 422) {
+        const body = await res.json();
+        const detail = body.detail;
+        if (detail && Array.isArray(detail.supported_patterns)) {
+          setError(
+            `Unsupported question. Supported patterns: ${detail.supported_patterns.join(", ")}`,
+          );
+        } else {
+          setError(typeof detail === "string" ? detail : JSON.stringify(detail));
+        }
+        return;
+      }
+      if (res.status === 503) {
+        setError("The backend is starting up — please try again in a moment.");
+        return;
+      }
+      if (!res.ok) {
+        setError(`Request failed (${res.status}).`);
+        return;
+      }
+      const data: KGResponse = await res.json();
+      setResult(data);
+    } catch {
+      setError("Could not reach the backend.");
+    }
   }
 
   return (
@@ -25,8 +63,23 @@ export default function KgPage() {
         placeholder="e.g. Find Sichuan recipes"
       />
       <button onClick={submit} disabled={!question}>Ask</button>
-      {/* TODO: render cypher in a <pre>, rows in a <table> with each
-                row having `data-testid="kg-row"`. */}
+      {error && <p role="alert">{error}</p>}
+      {result && (
+        <>
+          <pre>{result.cypher}</pre>
+          <table>
+            <tbody>
+              {result.rows.map((row, i) => (
+                <tr key={i} data-testid="kg-row">
+                  {Object.values(row).map((val, j) => (
+                    <td key={j}>{String(val)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
     </main>
   );
 }
