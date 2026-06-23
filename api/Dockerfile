@@ -14,8 +14,11 @@ WORKDIR /app
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install the spaCy English model needed by /extract.
-RUN python -m spacy download en_core_web_sm
+# Install the spaCy English model needed by /extract. `spacy download`
+# builds a malformed URL (.../download/-en_core_web_sm/-...tar.gz → 404) on
+# some spaCy/pip combos, so fall back to the pinned wheel when it fails.
+RUN python -m spacy download en_core_web_sm \
+    || pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 
 # Copy the rest of the build context (the api/ package lands at /app/api/).
 COPY . .

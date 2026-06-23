@@ -73,6 +73,9 @@ jobs:
           # missing-requirements bug surfaces as a Task 2 spec failure
           # ("update api/requirements.txt") rather than a CI ImportError.
           pip install 'python-jose[cryptography]>=3,<4' 'passlib[bcrypt]>=1.7,<2'
-          python -m spacy download en_core_web_sm
+          # `python -m spacy download` builds a malformed 404 URL on some
+          # spaCy/pip combos — install the pinned model wheel directly
+          # (same approach the Lab autograder uses).
+          pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
       - name: Stretch auth autograder
         run: pytest tests/auth -v --tb=short
